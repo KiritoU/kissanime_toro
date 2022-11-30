@@ -70,7 +70,7 @@ class Crawler:
 
         return res
 
-    def crawl_film(self, href: str, post_type: str = "tvshows"):
+    def crawl_film(self, href: str, post_type: str = "series"):
         soup = self.crawl_soup(href)
 
         if soup == 404:
@@ -132,7 +132,7 @@ class Crawler:
 
         return [film_data, episodes_data]
 
-    def crawl_page(self, url, post_type: str = "tvshows"):
+    def crawl_page(self, url, post_type: str = "series"):
         soup = self.crawl_soup(url)
 
         if soup == 404:
