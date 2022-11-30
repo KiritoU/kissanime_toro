@@ -252,39 +252,6 @@ class Helper:
 
         return players
 
-    def generate_episode_data(
-        self,
-        post_id,
-        episode_name,
-        season_number,
-        episode_number,
-        post_title,
-        fondo_player,
-        poster_url,
-        quality,
-        episode_links,
-    ):
-        players = self.get_players_iframes(episode_links)
-
-        episode_data = {
-            "post_id": post_id,
-            "title": episode_name,
-            "description": CONFIG.EPISODE_DEFAULT_DESCRIPTION.format(post_title),
-            "post_type": "episodes",
-            # "ids": "202302",
-            "season_number": season_number,
-            "episode_number": episode_number,
-            "serie": post_title,
-            "name": episode_name,
-            # "air_date": "2022-07-14",
-            "fondo_player": fondo_player,
-            "poster_serie": poster_url,
-            "quality": quality,
-            "players": players,
-        }
-
-        return episode_data
-
     def get_timeupdate(self) -> datetime:
 
         timeupdate = datetime.now() - timedelta(hours=7)
