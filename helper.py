@@ -215,7 +215,6 @@ class Helper:
         fondo_player,
         poster_url,
         extra_info,
-        status,
     ):
         post_data = {
             "description": description,
@@ -227,7 +226,6 @@ class Helper:
             # "episode_run_time": extra_info["Duration"],
             "fondo_player": fondo_player,
             "poster_url": poster_url,
-            "status": status,
             # "category": extra_info["Genre"],
             # "stars": extra_info["Actor"],
             # "director": extra_info["Director"],
@@ -239,7 +237,11 @@ class Helper:
             if info_key in extra_info.keys():
                 post_data[CONFIG.KEY_MAPPING[info_key]] = extra_info[info_key]
         if "Release" in extra_info.keys():
-            post_data["release-year"] = [extra_info["Release"]]
+            post_data["annee"] = [extra_info["Release"]]
+
+        for info_key in ["cast", "directors"]:
+            if info_key in post_data.keys():
+                post_data[f"{info_key}_tv"] = post_data[info_key]
 
         return post_data
 
@@ -293,9 +295,10 @@ class Helper:
         return equal_condition.replace("\n", "").strip().lower()
 
     def insert_terms(self, post_id: int, terms: list, taxonomy: str):
+        termIds = []
         for term in terms:
             term_name = self.format_condition_str(term)
-            cols = "tt.term_taxonomy_id"
+            cols = "tt.term_taxonomy_id, tt.term_id"
             table = (
                 f"{CONFIG.TABLE_PREFIX}term_taxonomy tt, {CONFIG.TABLE_PREFIX}terms t"
             )
@@ -309,12 +312,15 @@ class Helper:
                     table=f"{CONFIG.TABLE_PREFIX}terms",
                     data=(term, slugify(term), 0),
                 )
+                termIds = [term_id, True]
                 term_taxonomy_id = database.insert_into(
                     table=f"{CONFIG.TABLE_PREFIX}term_taxonomy",
                     data=(term_id, taxonomy, "", 0, 0),
                 )
             else:
                 term_taxonomy_id = be_term[0][0]
+                term_id = be_term[0][1]
+                termIds = [term_id, False]
 
             try:
                 database.insert_into(
@@ -323,6 +329,8 @@ class Helper:
                 )
             except:
                 pass
+
+        return termIds
 
     def generate_post(self, post_data: dict) -> tuple:
         timeupdate = self.get_timeupdate()
@@ -365,73 +373,63 @@ class Helper:
             postmeta_data = [
                 (post_id, "_edit_last", "1"),
                 (post_id, "_edit_lock", f"{int(timeupdate.timestamp())}:1"),
-                (post_id, "time", ""),
-                (post_id, "timezone", ""),
-                # (post_id, "id", post_data["id"]),
-                (post_id, "featureds_img", ""),
+                # _thumbnail_id
+                (post_id, "tr_post_type", "2"),
+                (post_id, "field_title", post_data["title"]),
                 (
                     post_id,
-                    "poster_url",
+                    "field_trailer",
+                    CONFIG.YOUTUBE_IFRAME.format(post_data["youtube_id"]),
+                ),
+                (
+                    post_id,
+                    "poster_hotlink",
                     post_data["poster_url"],
                 ),
                 (
                     post_id,
-                    "fondo_player",
+                    "backdrop_hotlink",
                     post_data["fondo_player"],
                 ),
-                (
-                    post_id,
-                    "imagenes",
-                    "",
-                ),
-                (post_id, "youtube_id", post_data["youtube_id"]),
-                (post_id, "original_name", post_data["title"]),
-                (post_id, "status", post_data["status"]),
-                (post_id, "first_air_date", ""),
-                (post_id, "last_air_date", ""),
-                (post_id, "notice_s", "0"),
-                (post_id, "_notice_s", "field_5b4c2d7154b68"),
-                (post_id, "ddw", "0"),
-                (post_id, "_ddw", "field_54fa4e8cbca22"),
-                (post_id, "voo", "0"),
-                (post_id, "_voo", "field_54fa4f41bca28"),
-                (post_id, "subt", "0"),
-                (post_id, "_subt", "field_58b5255a24d0f"),
             ]
 
-            tvseries_postmeta_data = [
-                (post_id, "next-ep", ""),
-                (post_id, "tv_eps_num", ""),
-                (post_id, "temporadas", "0"),
-                (post_id, "_temporadas", "field_58718d88c2bf9"),
-            ]
+            if "rating" in post_data.keys():
+                postmeta_data.append((post_id, "rating", post_data["rating"]))
 
+            tvseries_postmeta_data = []
             movie_postmeta_data = []
 
-            if "serie_vote_average" in post_data.keys():
-                tvseries_postmeta_data.append(
-                    (post_id, "serie_vote_average", post_data["serie_vote_average"])
-                )
-                movie_postmeta_data.append(
-                    (post_id, "imdbRating", post_data["serie_vote_average"])
-                )
-
-            if "episode_run_time" in post_data.keys():
-                tvseries_postmeta_data.append(
-                    (post_id, "episode_run_time", post_data["episode_run_time"])
-                )
-                movie_postmeta_data.append(
-                    (post_id, "Runtime", f"{post_data['episode_run_time']} min")
+            if "annee" in post_data.keys():
+                annee = (
+                    post_id,
+                    "field_date",
+                    post_data["annee"][0],
                 )
 
-            if post_data["post_type"] == "tvshows":
+                tvseries_postmeta_data.append(annee)
+                movie_postmeta_data.append(annee)
+
+            if "field_runtime" in post_data.keys():
+                tvseries_postmeta_data.append(
+                    (
+                        post_id,
+                        "field_runtime",
+                        "a:1:{i:0;i:" + post_data["field_runtime"] + ";}",
+                    )
+                )
+
+                movie_postmeta_data.append(
+                    (post_id, "field_runtime", f"{post_data['field_runtime']}m"),
+                )
+
+            if post_data["post_type"] == "series":
                 postmeta_data.extend(tvseries_postmeta_data)
             else:
                 postmeta_data.extend(movie_postmeta_data)
 
             self.insert_postmeta(postmeta_data)
 
-            for taxonomy in CONFIG.TAXONOMIES:
+            for taxonomy in CONFIG.TAXONOMIES[post_data["post_type"]]:
                 if taxonomy in post_data.keys() and post_data[taxonomy]:
                     self.insert_terms(
                         post_id=post_id, terms=post_data[taxonomy], taxonomy=taxonomy
@@ -562,10 +560,10 @@ class Helper:
 
         sleep(0.01)
 
-    def insert_postmeta(self, postmeta_data):
+    def insert_postmeta(self, postmeta_data: list, table: str = "postmeta"):
         for row in postmeta_data:
             database.insert_into(
-                table=f"{CONFIG.TABLE_PREFIX}postmeta",
+                table=f"{CONFIG.TABLE_PREFIX}{table}",
                 data=row,
             )
             sleep(0.01)

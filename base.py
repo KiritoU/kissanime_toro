@@ -103,6 +103,8 @@ class Crawler:
 
         trailer_id = ""
 
+        genres.append(status)
+
         extra_info = {
             "Genre": genres,
         }
@@ -126,7 +128,6 @@ class Crawler:
             "fondo_player": fondo_player,
             "poster_url": poster_url,
             "extra_info": extra_info,
-            "status": status,
         }
 
         return [film_data, episodes_data]
@@ -178,7 +179,7 @@ if __name__ == "__main__":
     # Crawler_Site().crawl_film(
     #     "https://series9.la/film/the-curse-of-oak-island-season-10"
     # )
-    Crawler().crawl_film("https://ww1.kissanime.so/info/ookiku-furikabutte-season-2")
+    Crawler().crawl_film("https://ww1.kissanime.so/info/ling-tian-divine-emperor")
 
     # Crawler_Site().crawl_film(
     #     "https://series9.la//film/ghost-adventures-bwm", post_type="post"

@@ -1,4 +1,8 @@
+import base64
 import logging
+
+from html import escape
+from phpserialize import serialize
 
 from _db import database
 from helper import helper
@@ -16,6 +20,55 @@ class Torotheme:
             else self.film["extra_info"]["Quality"]
         )
         self.episodes = episodes
+
+    def get_server_from(self, index: int, link: str) -> str:
+        try:
+            link = link.replace("https://", "")
+            server = link.split("/")[0]
+            server = server.split(".")[0]
+            return server.capitalize()
+        except Exception as e:
+            self.error_log(
+                msg=f"Error getting server: {link}\n{e}",
+                log_file="helper.get_server_from.log",
+            )
+
+        return f"Server {index}"
+
+    def generate_trglinks(
+        self,
+        index: int,
+        link: str,
+        lang: str = "English",
+        quality: str = "HD",
+    ) -> str:
+        if "http" not in link:
+            link = "https:" + link
+
+        server = self.get_server_from(index, link)
+        server_term_id, isNewServer = helper.insert_terms(
+            post_id=0, terms=[server], taxonomy="server"
+        )
+
+        lang_term_id, isNewLang = helper.insert_terms(
+            post_id=0, terms=[lang], taxonomy="language"
+        )
+
+        quality_term_id, isNewQuality = helper.insert_terms(
+            post_id=0, terms=[quality], taxonomy="quality"
+        )
+
+        link_data = {
+            "type": "1",
+            "server": str(server_term_id),
+            "lang": int(lang_term_id),
+            "quality": int(quality_term_id),
+            "link": base64.b64encode(bytes(escape(link), "utf-8")).decode("utf-8"),
+            "date": helper.get_timeupdate().strftime("%d/%m/%Y"),
+        }
+        link_data_serialized = serialize(link_data).decode("utf-8")
+
+        return f's:{len(link_data_serialized)}:"{link_data_serialized}";'
 
     def insert_movie_details(self, post_id):
         if not self.episodes:
@@ -46,7 +99,7 @@ class Torotheme:
                 (
                     post_id,
                     f"trglinks_{i}",
-                    helper.generate_trglinks(i, link, quality=quality),
+                    self.generate_trglinks(i, link, quality=quality),
                 )
             )
 
@@ -95,21 +148,19 @@ class Torotheme:
             )
 
     def insert_episodes(self, post_id: int, season_term_id: int):
-        episodes_keys = list(self.episodes.keys())
-        episodes_keys.reverse()
-        lenEpisodes = len(episodes_keys)
+        self.episodes.reverse()
+        lenEpisodes = len(self.episodes)
 
         self.update_season_number_of_episodes(season_term_id, lenEpisodes)
 
         for i in range(lenEpisodes):
-            episode_number = episodes_keys[i]
-            episode = self.episodes[episode_number]
+            episode = self.episodes[i]
             episode_title = episode["title"]
+
             len_episode_links = len(episode["links"])
 
             episode_term_name = (
-                self.film["post_title"]
-                + f' {self.film["season_number"]}x{episode_number}'
+                self.film["post_title"] + f' {self.film["season_number"]}x{i+1}'
             )
             episode_term_id, isNewEpisode = helper.insert_terms(
                 post_id=post_id, terms=[episode_term_name], taxonomy="episodes"
@@ -121,7 +172,7 @@ class Torotheme:
             logging.info(f"Inserted new episode: {episode_title}")
 
             termmeta_data = [
-                (episode_term_id, "episode_number", episode_number),
+                (episode_term_id, "episode_number", i + 1),
                 (episode_term_id, "name", episode_title),
                 (episode_term_id, "season_number", self.film["season_number"]),
                 (episode_term_id, "tr_id_post", post_id),
@@ -143,7 +194,7 @@ class Torotheme:
                     (
                         episode_term_id,
                         f"trglinks_{i}",
-                        helper.generate_trglinks(i, link, quality=quality),
+                        self.generate_trglinks(i, link, quality=quality),
                     )
                 )
 
